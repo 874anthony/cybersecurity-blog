@@ -8,6 +8,12 @@ const theme = extendTheme({
       800: '#262626',
     },
     secondary: {
+      500: '#a855f7',
+    },
+    gray: {
+      200: '#f1f3f5',
+    },
+    slateblue: {
       900: '#0f172a',
       600: '#475569',
     },

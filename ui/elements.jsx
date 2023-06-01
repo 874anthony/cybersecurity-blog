@@ -6,4 +6,8 @@ export {
   Heading,
   Image,
   Text,
+  Divider,
+  Tag,
+  Container,
+  Link,
 } from '@chakra-ui/react';

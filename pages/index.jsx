@@ -1,13 +1,16 @@
 import { Fragment } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 
-import { Icons, UI } from '@/ui';
-import { SocialNetworks } from '@/components';
+import { UI } from '@/ui';
+import { PostListItem, SocialNetworks } from '@/components';
 
 import { getAllFilesMetadata } from '@/lib/mdx';
-import { Divider, Tag } from '@chakra-ui/react';
+import { formatDate } from '@/lib/formatDate';
 
 export default function Home({ posts }) {
+  console.log(posts);
+
   return (
     <Fragment>
       <Head>
@@ -23,7 +26,7 @@ export default function Home({ posts }) {
             <UI.Heading
               as="h1"
               letterSpacing={-0.5}
-              color="white"
+              color="gray.200"
               fontWeight={700}
               fontSize={32}
               mb={2}
@@ -31,13 +34,13 @@ export default function Home({ posts }) {
               Anthony Acosta (a.k.a. @874anthony)
             </UI.Heading>
 
-            <UI.Text as="h2" color="white" fontWeight={700} fontSize={24}>
-              Cibersecurity Student and Software Developer.
+            <UI.Text as="h2" color="gray.200" fontWeight={700} fontSize={24}>
+              Cybersecurity Student and Software Developer.
             </UI.Text>
 
             <UI.Text
               lineHeight={1.7}
-              color="white"
+              color="gray.200"
               fontWeight={400}
               fontSize={16}
             >
@@ -61,7 +64,7 @@ export default function Home({ posts }) {
 
         <SocialNetworks />
 
-        <Divider my={8} />
+        <UI.Divider my={8} />
 
         <UI.Flex my="24px" direction="column">
           <UI.Heading
@@ -69,57 +72,25 @@ export default function Home({ posts }) {
             as="h3"
             fontSize={24}
             fontWeight={700}
-            color="white"
+            color="gray.200"
           >
-            Lastest posts
+            Latest posts
           </UI.Heading>
 
-          <UI.Box mt={2} as="span" display="block" py={2}>
-            <UI.Text
-              fontFamily="body"
-              as="h4"
-              size="md"
-              fontWeight={400}
-              fontSize={16}
-              my={2}
-              color="white"
-            >
-              HTB Encoding Machine Writeup - Medium
-            </UI.Text>
+          {posts.map((post) => (
+            <Link key={post.slug} href={`/${post.slug}`}>
+              <PostListItem
+                title={post.title}
+                date={formatDate(post.date)}
+                tags={post.tags}
+              />
+            </Link>
+          ))}
 
-            <UI.Flex align="center" fontSize="sm" color="white">
-              <Icons.IconCalendar fill="white" />
-              <UI.Text ml={1} color="dark">
-                2023-05-31{' '}
-                <Tag
-                  key="✨ Medium"
-                  size="sm"
-                  color="white"
-                  textAlign="center"
-                  background="secondary.600"
-                  colorScheme="secondary"
-                >
-                  ✨ Medium
-                </Tag>
-              </UI.Text>
-            </UI.Flex>
-          </UI.Box>
-        </UI.Flex>
-
-        {/* <div>
-        {posts.map((post) => (
-          <Link
-            key={post.slug}
-            href={`/${post.slug}`}
-            rel="noopener noreferrer"
-          >
-            <h2>
-              {post.title} <span>-&gt;</span>
-            </h2>
-            <p>{post.date}</p>
+          <Link style={{ marginTop: '8px' }} href="/blog">
+            <UI.Text color="secondary.500">See all posts &rarr;</UI.Text>
           </Link>
-        ))}
-      </div> */}
+        </UI.Flex>
       </UI.Box>
     </Fragment>
   );
@@ -127,8 +98,6 @@ export default function Home({ posts }) {
 
 export async function getStaticProps() {
   const posts = await getAllFilesMetadata();
-
-  // console.log(posts);
 
   return {
     props: { posts },
