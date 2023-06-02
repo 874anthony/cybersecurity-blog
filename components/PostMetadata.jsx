@@ -1,6 +1,5 @@
 import { UI, Icons } from '@/ui';
 import { formatDate } from '@/lib/formatDate';
-import Link from 'next/link';
 import { OpenPR } from '.';
 
 export default function PostMetadata({ date, tags, slug }) {

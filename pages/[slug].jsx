@@ -2,7 +2,7 @@ import { MDXRemote } from 'next-mdx-remote';
 
 import { UI } from '@/ui';
 import { getFileBySlug, getFiles } from '@/lib/mdx';
-import { MDXComponents, PostMetadata } from '@/components';
+import { Footer, MDXComponents, PostMetadata } from '@/components';
 
 export default function Post({ sourceContent, frontmatter }) {
   return (
@@ -12,10 +12,10 @@ export default function Post({ sourceContent, frontmatter }) {
       borderTop="8px solid"
       borderColor="secondary.500"
       color="gray.200"
-      height={{ base: '100%', md: '100vh' }}
+      minHeight="100vh"
     >
-      <UI.Container maxW="container.md" pt={24}>
-        <UI.Flex direction="column" mb={8}>
+      <UI.Container maxW="container.md" pt={16}>
+        <UI.Flex direction="column">
           <UI.Heading
             as="h1"
             fontSize={36}
@@ -31,6 +31,8 @@ export default function Post({ sourceContent, frontmatter }) {
 
         <MDXRemote {...sourceContent} components={MDXComponents} />
       </UI.Container>
+
+      <Footer />
     </UI.Box>
   );
 }

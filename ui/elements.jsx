@@ -10,4 +10,11 @@ export {
   Tag,
   Container,
   Link,
+  TableContainer,
+  Table,
+  Thead,
+  Tbody,
+  Th,
+  Tr,
+  Td,
 } from '@chakra-ui/react';

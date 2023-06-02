@@ -54,7 +54,7 @@ export default function Home({ posts }) {
 
           <UI.Box>
             <UI.Image
-              src="/images/hacking-hero.jpg"
+              src="/assets/hacking-hero.jpg"
               alt="A person with a hoodie and in the dark"
               width="100%"
               borderRadius={50}
