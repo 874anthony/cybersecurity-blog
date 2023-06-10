@@ -10,8 +10,6 @@ import { formatDate } from '@/lib/formatDate';
 import { orderByDate } from '@/lib/orderByDate';
 
 export default function Home({ posts }) {
-  console.log(posts);
-
   return (
     <Fragment>
       <Head>

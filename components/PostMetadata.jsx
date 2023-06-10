@@ -3,8 +3,6 @@ import { formatDate } from '@/lib/formatDate';
 import { OpenPR } from '.';
 
 export default function PostMetadata({ date, tags, slug, readingTime }) {
-  console.log('readingTime', readingTime);
-
   return (
     <UI.Flex direction="column" py={2} gap={3}>
       <UI.Flex gap={4}>

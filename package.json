@@ -17,6 +17,7 @@
     "@fontsource-variable/raleway": "5.0.4",
     "@fontsource-variable/source-code-pro": "5.0.3",
     "@fontsource/poppins": "5.0.2",
+    "@vercel/og": "0.5.7",
     "date-fns": "2.30.0",
     "eslint": "8.41.0",
     "eslint-config-next": "13.4.4",
