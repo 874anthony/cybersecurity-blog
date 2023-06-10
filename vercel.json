@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "build": {
-    "env": {
-      "NODE_OPTIONS": "--require tsconfig-paths/register"
-    }
-  }
-}
