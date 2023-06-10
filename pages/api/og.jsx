@@ -1,3 +1,4 @@
+import NextImage from 'next/image';
 import { ImageResponse } from '@vercel/og';
 
 export const config = {
@@ -8,56 +9,61 @@ const image = fetch(
   new URL('/public/assets/hacking-hero.jpg', import.meta.url)
 ).then((res) => res.arrayBuffer());
 
+const font = fetch(
+  new URL('/public/assets/poppins.woff', import.meta.url)
+).then((res) => res.arrayBuffer());
+
 export default async function handler(request) {
   try {
     const imageData = await image;
+    const fontData = await font;
+
     const { searchParams } = new URL(request.url);
 
     const hasTitle = searchParams.has('title');
     const title = hasTitle
       ? searchParams.get('title')?.slice(0, 75)
-      : '874anthony cybersec blog';
+      : 'Learn Cybersecurity related things and more!';
 
     return new ImageResponse(
       (
         <div
           style={{
-            backgroundImage: 'url(/public/assets/hacking-hero.jpg)',
+            backgroundImage:
+              'linear-gradient(to right, rgba(0,0,0, 0.8), rgba(0,0,0, 0.5))',
             height: '100%',
             width: '100%',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             display: 'flex',
-            textAlign: 'center',
             alignItems: 'center',
             justifyContent: 'center',
-            flexDirection: 'column',
-            flexWrap: 'nowrap',
+            padding: '24px',
+            borderBottom: '8px solid',
+            borderColor: '#3b0764',
           }}
         >
-          <div
+          <img
+            src={imageData}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              justifyItems: 'center',
+              title: 'A person with a hoodie and in the dark',
+              width: '400px',
+              height: '400px',
+              borderRadius: '50%',
+              objectFit: 'cover',
             }}
-          >
-            {/* <img
-              src={imageData}
-              alt="Vercel"
-              height={200}
-              style={{ margin: '0 30px' }}
-              width={232}
-            /> */}
-          </div>
+          />
+
           <div
             style={{
-              fontSize: 60,
+              fontSize: 64,
+              fontFamily: 'Poppins',
+              fontWeight: 700,
               fontStyle: 'normal',
-              letterSpacing: '-0.025em',
+              letterSpacing: '-1px',
               color: 'white',
-              marginTop: 30,
-              padding: '0 120px',
-              lineHeight: 1.4,
+              marginLeft: '48px',
+              lineHeight: 1.1,
               whiteSpace: 'pre-wrap',
             }}
           >
@@ -66,8 +72,15 @@ export default async function handler(request) {
         </div>
       ),
       {
-        width: 1200,
-        height: 630,
+        width: 1000,
+        height: 500,
+        fonts: [
+          {
+            name: 'Poppins',
+            data: fontData,
+            format: 'woff',
+          },
+        ],
       }
     );
   } catch (e) {
