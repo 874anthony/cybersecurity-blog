@@ -27,6 +27,7 @@ export default function PostListItem({ title, date, tags }) {
               textAlign="center"
               background="slateblue.600"
               colorScheme="slateblue"
+              ml={1}
             >
               {tag}
             </UI.Tag>

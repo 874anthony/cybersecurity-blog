@@ -21,7 +21,8 @@ const theme = extendTheme({
   },
   fonts: {
     heading: "'Open Sans', sans-serif",
-    body: "'Source Code Pro Variable', sans-serif",
+    body: "'Raleway Variable', sans-serif",
+    code: "'Source Code Pro Variable', sans-serif",
   },
 });
 

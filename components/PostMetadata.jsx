@@ -2,7 +2,9 @@ import { UI, Icons } from '@/ui';
 import { formatDate } from '@/lib/formatDate';
 import { OpenPR } from '.';
 
-export default function PostMetadata({ date, tags, slug }) {
+export default function PostMetadata({ date, tags, slug, readingTime }) {
+  console.log('readingTime', readingTime);
+
   return (
     <UI.Flex direction="column" py={2} gap={3}>
       <UI.Flex gap={4}>
@@ -16,7 +18,7 @@ export default function PostMetadata({ date, tags, slug }) {
         <UI.Flex alignItems="center" gap={1}>
           <Icons.IconClock fill="white" />
           <UI.Text fontWeight={500} ml={1}>
-            5 min read
+            {Math.round(readingTime.minutes)} min read
           </UI.Text>
         </UI.Flex>
 
