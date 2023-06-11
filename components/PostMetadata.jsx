@@ -5,26 +5,32 @@ import { OpenPR } from '.';
 export default function PostMetadata({ date, tags, slug, readingTime }) {
   return (
     <UI.Flex direction="column" py={2} gap={3}>
-      <UI.Flex gap={4}>
+      <UI.Flex
+        gap={4}
+        direction={['column', 'column', 'row']}
+        align={['left', 'left', 'center']}
+        justify="flex-start"
+        color="white"
+        fontSize={['sm', 'md']}
+        fontWeight="500"
+        fontFamily="heading"
+      >
         <UI.Flex alignItems="center" gap={1}>
           <Icons.IconCalendar fill="white" />
-          <UI.Text ml={1} fontWeight={500} color="secondary.500">
+          <UI.Text ml={1} color="secondary.500">
             {formatDate(date)}
           </UI.Text>
         </UI.Flex>
 
         <UI.Flex alignItems="center" gap={1}>
           <Icons.IconClock fill="white" />
-          <UI.Text fontWeight={500} ml={1}>
-            {Math.round(readingTime.minutes)} min read
-          </UI.Text>
+          <UI.Text ml={1}>{Math.round(readingTime.minutes)} min read</UI.Text>
         </UI.Flex>
 
         <UI.Flex alignItems="center" gap={1}>
           {tags.map((tag) => (
             <UI.Tag
               key={tag}
-              fontWeight={500}
               size="sm"
               color="white"
               textAlign="center"

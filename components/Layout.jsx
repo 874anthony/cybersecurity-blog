@@ -23,7 +23,7 @@ export default function Layout({ children, metadata = {}, type = 'post' }) {
           <UI.Flex direction="column">
             <UI.Heading
               as="h1"
-              fontSize={36}
+              fontSize="2xl"
               fontWeight={700}
               mb={4}
               letterSpacing={1}

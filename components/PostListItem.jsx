@@ -8,14 +8,14 @@ export default function PostListItem({ title, date, tags }) {
         as="h4"
         size="md"
         fontWeight={500}
-        fontSize={16}
+        fontSize={[14, 16]}
         my={2}
         color="gray.200"
       >
         {title}
       </UI.Text>
 
-      <UI.Flex align="center" fontSize="sm" color="gray.200">
+      <UI.Flex align="center" fontSize={['xs', 'sm']} color="gray.200">
         <Icons.IconCalendar fill="white" />
         <UI.Text ml={1} fontWeight={500} color="secondary.500">
           {date}{' '}

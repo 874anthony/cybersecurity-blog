@@ -7,7 +7,7 @@ const github = {
 
 export default function OpenPR({ slug }) {
   return (
-    <UI.Flex align="center" gap={1}>
+    <UI.Flex fontSize={['sm', 'md']} align="center" gap={1}>
       <Icons.IconGithub fill="white" />
       <UI.Text fontWeight={500} ml={1}>
         Do you see a typo? Something is wrong?{' '}

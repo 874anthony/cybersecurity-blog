@@ -7,6 +7,7 @@ import {
   SocialNetworks,
   SectionLinks,
   OpenGraph,
+  Footer,
 } from '@/components';
 
 import { getAllFilesMetadata } from '@/lib/mdx';
@@ -20,7 +21,6 @@ export default function Home({ posts }) {
 
       <UI.Box
         w="100%"
-        h="100vh"
         bg="brand.950"
         borderTop="8px solid"
         borderColor="secondary.500"
@@ -28,28 +28,39 @@ export default function Home({ posts }) {
         <UI.Container maxW="container.lg" pt="8">
           <SectionLinks />
 
-          <UI.Grid gap={8} alignItems="center" templateColumns="2fr 1fr">
-            <UI.Flex flexDir="column" gap={2}>
+          <UI.Flex
+            direction={['column', 'row']}
+            justify="space-between"
+            align="left"
+          >
+            <UI.Box width={['100%', '75%']} order={[2, 1]}>
               <UI.Heading
                 as="h1"
                 letterSpacing={-0.5}
                 color="gray.200"
                 fontWeight={700}
-                fontSize={32}
-                mb={2}
+                fontSize={[28, 32]}
+                mt={8}
+                mb={4}
               >
                 Anthony Acosta (a.k.a. @874anthony)
               </UI.Heading>
 
-              <UI.Text as="h2" color="gray.200" fontWeight={700} fontSize={24}>
+              <UI.Heading
+                as="h2"
+                color="gray.200"
+                fontWeight={700}
+                fontSize={[20, 24]}
+                my={2}
+              >
                 Cybersecurity Student and Software Developer.
-              </UI.Text>
+              </UI.Heading>
 
               <UI.Text
                 lineHeight={1.7}
                 color="gray.200"
                 fontWeight={400}
-                fontSize={16}
+                fontSize={[14, 16]}
               >
                 This is my personal blog where I write about my journey in the
                 cybersecurity world and some other software development stuff.
@@ -57,27 +68,31 @@ export default function Home({ posts }) {
                 how much I&apos;ve grown. I hope others can benefit from this
                 blog as well.
               </UI.Text>
-            </UI.Flex>
+            </UI.Box>
 
-            <UI.Box>
+            <UI.Box
+              width={['65%', '29%']}
+              order={[1, 2]}
+              alignSelf={['start', 'center']}
+            >
               <UI.Image
-                src="/assets/hacking-hero.jpg"
-                alt="A person with a hoodie and in the dark"
                 width="100%"
                 borderRadius={50}
+                src="/assets/hacking-hero.jpg"
+                alt="A person with a hoodie and in the dark"
               />
             </UI.Box>
-          </UI.Grid>
+          </UI.Flex>
 
           <SocialNetworks />
 
           <UI.Divider my={8} />
 
-          <UI.Flex my="24px" direction="column">
+          <UI.Flex mt="24px" direction="column">
             <UI.Heading
               letterSpacing={1}
               as="h3"
-              fontSize={24}
+              fontSize={[20, 24]}
               fontWeight={700}
               color="gray.200"
             >
@@ -100,6 +115,8 @@ export default function Home({ posts }) {
           </UI.Flex>
         </UI.Container>
       </UI.Box>
+
+      <Footer />
     </Fragment>
   );
 }
