@@ -5,7 +5,7 @@ export default function OpenGraph({ metadata = {} }) {
     title: metadata.title || 'Learn Cybersecurity related things and more!',
     description:
       metadata.description ||
-      'Blog posts about solved CTF challenges, walkthroughs, challenges, web development analysis and much more...',
+      'Blog posts about solved CTF machines, walkthroughs, challenges, web development analysis and much more...',
     slug: metadata.slug || '',
     image: `https://cybersecurity-blog-rust.vercel.app/api/og?title=${
       metadata.title || 'Learn Cybersecurity related things and more!'

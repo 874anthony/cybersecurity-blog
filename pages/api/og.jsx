@@ -31,7 +31,7 @@ export default async function handler(request) {
           style={{
             backgroundImage:
               'url(https://cybersecurity-blog-rust.vercel.app/assets/og-background.jpg)',
-            opacity: 0.9,
+            opacity: 0.95,
             height: '100%',
             width: '100%',
             backgroundSize: 'cover',
