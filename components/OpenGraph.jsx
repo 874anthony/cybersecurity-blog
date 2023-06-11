@@ -2,13 +2,16 @@ import Head from 'next/head';
 
 export default function OpenGraph({ metadata = {} }) {
   const SEO = {
-    title: metadata.title || 'Learn Cybersecurity related things and more!',
+    title:
+      metadata.title ||
+      'Learn Cybersecurity related things and more | Anthony Acosta',
     description:
       metadata.description ||
       'Blog posts about solved CTF machines, walkthroughs, challenges, web development analysis and much more...',
     slug: metadata.slug || '',
     image: `https://cybersecurity-blog-rust.vercel.app/api/og?title=${
-      metadata.title || 'Learn Cybersecurity related things and more!'
+      metadata.title ||
+      'Learn Cybersecurity related things and more | Anthony Acosta'
     }`,
     date: metadata.date || new Date().toISOString(),
   };
