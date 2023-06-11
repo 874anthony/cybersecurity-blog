@@ -7,7 +7,9 @@ export default function OpenGraph({ metadata = {} }) {
       metadata.description ||
       'Blog posts about solved CTF challenges, walkthroughs, challenges, web development analysis and much more...',
     slug: metadata.slug || '',
-    image: `https://cybersecurity-blog-rust.vercel.app/api/og?title=${this.title}`,
+    image: `https://cybersecurity-blog-rust.vercel.app/api/og?title=${
+      metadata.title || 'Learn Cybersecurity related things and more!'
+    }`,
     date: metadata.date || new Date().toISOString(),
   };
 
