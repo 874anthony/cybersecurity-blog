@@ -1,6 +1,6 @@
 import { UI } from '@/ui';
 
-import { PostMetadata, Footer, SectionLinks } from '.';
+import { PostMetadata, Footer, SectionLinks, OpenGraph } from '.';
 
 export default function Layout({ children, metadata = {}, type = 'post' }) {
   const isPost = type === 'post';
@@ -14,6 +14,8 @@ export default function Layout({ children, metadata = {}, type = 'post' }) {
       color="gray.200"
       minHeight="100vh"
     >
+      <OpenGraph metadata={metadata} />
+
       <UI.Container maxW="container.lg" pt="8">
         <SectionLinks />
 

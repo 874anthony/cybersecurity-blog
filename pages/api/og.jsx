@@ -30,7 +30,8 @@ export default async function handler(request) {
         <div
           style={{
             backgroundImage:
-              'linear-gradient(to right, rgba(0,0,0, 0.8), rgba(0,0,0, 0.5))',
+              'url(https://cybersecurity-blog-rust.vercel.app/assets/og-background.jpg)',
+            opacity: 0.9,
             height: '100%',
             width: '100%',
             backgroundSize: 'cover',
@@ -58,7 +59,7 @@ export default async function handler(request) {
             style={{
               fontSize: 64,
               fontFamily: 'Poppins',
-              fontWeight: 700,
+              fontWeight: 900,
               fontStyle: 'normal',
               letterSpacing: '-1px',
               color: 'white',
