@@ -1,29 +1,33 @@
 import { MDXRemote } from 'next-mdx-remote';
+import { useRouter } from 'next/router';
 
 import { getFileBySlug, getFiles } from '@/lib/mdx';
 import { MDXComponents, Layout, ScrollToTop } from '@/components';
+import { useEffect } from 'react';
 
 export default function Post({ sourceContent, frontmatter }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (frontmatter.redirect) {
+      router.push(frontmatter.redirect);
+    }
+  });
+
   return (
-    <Layout metadata={frontmatter}>
-      <MDXRemote {...sourceContent} components={MDXComponents} />
-      <ScrollToTop />
-    </Layout>
+    <>
+      {frontmatter && !frontmatter.redirect && (
+        <Layout metadata={frontmatter}>
+          <MDXRemote {...sourceContent} components={MDXComponents} />
+          <ScrollToTop />
+        </Layout>
+      )}
+    </>
   );
 }
 
 export async function getStaticProps({ params }) {
   const { sourceContent, frontmatter } = await getFileBySlug(params.slug);
-
-  // Redirect to 404 if private is set to true
-  if (frontmatter.private) {
-    return {
-      redirect: {
-        destination: '/',
-        permanent: true,
-      },
-    };
-  }
 
   return {
     props: {
