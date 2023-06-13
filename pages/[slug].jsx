@@ -15,6 +15,16 @@ export default function Post({ sourceContent, frontmatter }) {
 export async function getStaticProps({ params }) {
   const { sourceContent, frontmatter } = await getFileBySlug(params.slug);
 
+  // Redirect to 404 if private is set to true
+  if (frontmatter.private) {
+    return {
+      redirect: {
+        destination: '/',
+        permanent: true,
+      },
+    };
+  }
+
   return {
     props: {
       sourceContent,
@@ -24,7 +34,7 @@ export async function getStaticProps({ params }) {
 }
 
 export async function getStaticPaths() {
-  const posts = await getFiles();
+  const posts = getFiles();
   const paths = posts.map((post) => ({
     params: {
       slug: post.replace(/\.mdx/, ''),
