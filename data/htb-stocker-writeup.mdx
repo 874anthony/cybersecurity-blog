@@ -1,0 +1,120 @@
+---
+title: 'HTB Stocker - Writeup'
+date: '2023-06-12'
+tags: ['Difficulty: 🟢 Easy', 'OS: Linux', 'CTF: HackTheBox']
+---
+
+<BoxInfo
+  imageURL="/images/htb-stocker-writeup/stocker-machine-overview.png"
+  alt="Stocker HTB Overview Image"
+  description="Stocker starts with a static site 
+  powered by Eleventy. After digging a bit, I found there's a 
+  subdomain with a login page that is running Express.js and is vulnerable to NoSQL Injection. 
+  We bypass the aunthentication and log in to the site. 
+  I'll exploit an unsanitized input that's being passed to a dynamic PDF that leads to a 
+  file disclosure and use that to get source code of the application and find a hardcoded password and get a shell on the box.
+  Inside the machine, we can abuse a path wildcard (*) and run node with sudo and get a root shell."
+/>
+
+## Enumeration
+
+### nmap
+
+First we run [nmap](https://nmap.org/docs.html) to see what ports are open and what versions are running.
+
+```shell
+## Run a TCP SYN scan on all ports
+nmap -p- -sS --min-rate 5000  --open -n -Pn 10.129.172.36
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-06-12 23:34 EDT
+Nmap scan report for 10.129.172.36
+Host is up (0.23s latency).
+Not shown: 33893 closed tcp ports (reset), 31640 filtered tcp ports (no-response)
+PORT   STATE SERVICE
+22/tcp open  ssh
+80/tcp open  http
+
+Nmap done: 1 IP address (1 host up) scanned in 23.84 seconds
+
+## Detect versions of running services
+nmap -sCV -p22,80 10.129.172.36
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-06-12 23:37 EDT
+Nmap scan report for 10.129.172.36
+Host is up (0.073s latency).
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.5 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey:
+|   3072 3d12971d86bc161683608f4f06e6d54e (RSA)
+|   256 7c4d1a7868ce1200df491037f9ad174f (ECDSA)
+|_  256 dd978050a5bacd7d55e827ed28fdaa3b (ED25519)
+80/tcp open  http    nginx 1.18.0 (Ubuntu)
+|_http-title: Did not follow redirect to http://stocker.htb
+|_http-server-header: nginx/1.18.0 (Ubuntu)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 10.26 seconds
+```
+
+### SITE
+
+We see that it tries to redirect us to `http://stocker.htb` but it's not resolving. We'll add it to our `/etc/hosts` file and see what's there.
+
+![Stocker](/images/htb-stocker-writeup/stocker-htb-mainsite.png)
+
+All links on the site doesn't redirect except a few ones that points to another sections of the site. At the end, there's a staff section with **Angoose Garden** as the Head of IT at Stockers Ltd. We'll keep that in mind as a possible username.
+
+Given the `stocker.htb` domain, I'll look for possibles subdomains with `gobuster`
+
+#### Subdomain fuzzing
+
+```shell
+gobuster vhost -u http://stocker.htb -w /usr/share/SecLists/Discovery/DNS/subdomains-top1million-5000.txt --append-domain
+
+===============================================================
+Gobuster v3.5
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:             http://stocker.htb
+[+] Method:          GET
+[+] Threads:         10
+[+] Wordlist:        /usr/share/SecLists/Discovery/DNS/subdomains-top1million-5000.txt
+[+] User Agent:      gobuster/3.5
+[+] Timeout:         10s
+[+] Append Domain:   true
+===============================================================
+2023/06/13 00:00:38 Starting gobuster in VHOST enumeration mode
+===============================================================
+Found: dev.stocker.htb Status: 302 [Size: 28] [--> /login]
+===============================================================
+2023/06/13 00:01:18 Finished
+===============================================================
+```
+
+We add `dev.stocker.htb` to our `/etc/hosts` file
+
+### DEV
+
+In the dev site, we see a login page. A few guesses like `admin:admin` or `admin:password` doesn't work.
+
+![Stocker Dev](/images/htb-stocker-writeup/dev-stocker-login.png)
+
+We can see the headers of the site either with [Wappalyzer](https://addons.mozilla.org/es/firefox/addon/wappalyzer/) or with the curl command. We also see it's using nginx.
+
+```shell
+curl -s http://dev.stocker.htb/ -L -I
+
+HTTP/1.1 200 OK
+Server: nginx/1.18.0 (Ubuntu)
+Date: Tue, 13 Jun 2023 04:12:23 GMT
+Content-Type: text/html; charset=UTF-8
+Content-Length: 2667
+Connection: keep-alive
+X-Powered-By: Express
+[SNIP...]
+```
+
+Express is a web application framework for Node.js. It's often used to build web applications and APIs, storing data in MongoDB databases. This is known as the [MEAN](https://www.mongodb.com/mean-stack#:~:text=The%20MEAN%20stack%20is%20a,a%20client%2Dside%20JavaScript%20framework) stack.
+As the MongoDB team says:
+
+> “The MEAN stack is a JavaScript-based framework for developing web applications. MEAN is named after MongoDB, Express, Angular, and Node, the four key technologies that make up the layers of the stack."
