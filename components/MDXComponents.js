@@ -50,5 +50,17 @@ export const MDXComponents = {
   th: (props) => <UI.Th color="white" {...props} />,
   tr: (props) => <UI.Tr {...props} />,
   td: (props) => <UI.Td {...props} />,
+  blockquote: (props) => (
+    <UI.HStack
+      as="blockquote"
+      bg={'#6b21a8'}
+      borderLeft={'5px solid #9f7aea'}
+      px={4}
+      my={4}
+      fontStyle={'italic'}
+      fontWeight={700}
+      {...props}
+    />
+  ),
   BoxInfo,
 };
