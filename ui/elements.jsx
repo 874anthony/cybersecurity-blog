@@ -17,4 +17,8 @@ export {
   Th,
   Tr,
   Td,
+  UnorderedList,
+  OrderedList,
+  ListItem,
+  ListIcon,
 } from '@chakra-ui/react';

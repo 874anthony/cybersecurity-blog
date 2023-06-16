@@ -9,4 +9,7 @@ export {
 export {
   MdDateRange as IconCalendar,
   MdAccessTime as IconClock,
+  MdLabelImportant as IconLabel,
 } from 'react-icons/md';
+
+export { SiHackthebox as IconHackthebox } from 'react-icons/si';

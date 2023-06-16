@@ -5,20 +5,20 @@ const github = {
   repo: 'cibersecurity-blog',
 };
 
-export default function OpenPR({ slug }) {
+export default function HTBProfile() {
   return (
     <UI.Flex fontSize={['sm', 'md']} align="center" gap={1}>
-      <Icons.IconGithub fill="white" />
+      <Icons.IconHackthebox fill="white" />
       <UI.Text fontWeight={500} ml={1}>
-        Do you see a typo? Something is wrong?{' '}
+        In case you want to contact me, or see my stats, check out my{' '}
         <UI.Link
           isExternal
           color="secondary.500"
           target="_blank"
           rel="noopener noreferrer"
-          href={`https://github.com/${github.user}/${github.repo}/edit/main/data/${slug}.mdx`}
+          href="https://app.hackthebox.com/users/609847"
         >
-          Make a PR! <Icons.ExternalLinkIcon />
+          HTB profile! <Icons.ExternalLinkIcon />
         </UI.Link>
       </UI.Text>
     </UI.Flex>

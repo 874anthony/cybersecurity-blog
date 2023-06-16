@@ -1,6 +1,8 @@
-import { UI } from '@/ui';
+import { UI, Icons } from '@/ui';
+
 import BoxInfo from './BoxInfo';
 import CustomLink from './CustomLink';
+import CustomImage from './CustomImage';
 
 export const MDXComponents = {
   a: CustomLink,
@@ -62,5 +64,14 @@ export const MDXComponents = {
       {...props}
     />
   ),
+  ul: (props) => <UI.UnorderedList styleType="none" {...props} />,
+  ol: (props) => <UI.OrderedList styleType="none" {...props} />,
+  li: (props) => (
+    <UI.ListItem>
+      <UI.ListIcon as={Icons.IconLabel} color="secondary.500" />
+      {props.children}
+    </UI.ListItem>
+  ),
+  img: (props) => <CustomImage {...props} />,
   BoxInfo,
 };
