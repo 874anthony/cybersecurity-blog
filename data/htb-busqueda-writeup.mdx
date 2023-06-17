@@ -1,0 +1,79 @@
+---
+title: 'HTB Busqueda - Writeup'
+date: '2023-06-16'
+private: true
+tags: ['Difficulty: 🟢 Easy', 'OS: Linux', 'CTF: HackTheBox']
+---
+
+<BoxInfo
+  imageURL="/images/htb-busqueda-writeup/busqueda-machine-overview.png"
+  alt="Busqueda HTB Overview Image"
+  description="Busqueda is a pretty straightforward box. The scan reveals only port 22 (SSH) and port 80 (HTTP). 
+  The site has only one functionality which is vulnerable to command injection and let us get a reverse shell as low privilege user.
+  Then, there's a script we can run as sudo, but we need to find a way to see what this script does. 
+  Further enumeration reveals a config file inside the source code directory which contains git credentials for a gitea instance.
+  We use this credentials and see we can abuse a script that is being called from a relative path and get a root shell."
+/>
+
+## Enumeration
+
+### nmap
+
+First we run [nmap](https://nmap.org/docs.html) to see what ports are open and what versions are running.
+
+```shell
+## Run a TCP SYN scan on all ports
+nmap -p- -sS --min-rate 5000 -vvv --open -n -Pn 10.129.175.69
+Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-06-16 17:57 EDT
+Initiating SYN Stealth Scan at 17:57
+Scanning 10.129.175.69 [65535 ports]
+Discovered open port 80/tcp on 10.129.175.69
+Discovered open port 22/tcp on 10.129.175.69
+Completed SYN Stealth Scan at 17:57, 13.24s elapsed (65535 total ports)
+Nmap scan report for 10.129.175.69
+Host is up, received user-set (0.067s latency).
+Scanned at 2023-06-16 17:57:05 EDT for 13s
+Not shown: 65533 closed tcp ports (reset)
+PORT STATE SERVICE REASON
+22/tcp open ssh syn-ack ttl 63
+80/tcp open http syn-ack ttl 63
+
+Read data files from: /usr/bin/../share/nmap
+Nmap done: 1 IP address (1 host up) scanned in 13.34 seconds
+Raw packets sent: 65800 (2.895MB) | Rcvd: 65800 (2.632MB)
+
+## Detect versions of running services
+nmap -sCV -p22,80 10.129.175.69
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-06-16 17:57 EDT
+Nmap scan report for 10.129.175.69
+Host is up (0.071s latency).
+
+PORT STATE SERVICE VERSION
+22/tcp open ssh OpenSSH 8.9p1 Ubuntu 3ubuntu0.1 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey:
+| 256 4fe3a667a227f9118dc30ed773a02c28 (ECDSA)
+|\_ 256 816e78766b8aea7d1babd436b7f8ecc4 (ED25519)
+80/tcp open http Apache httpd 2.4.52
+|\_http-server-header: Apache/2.4.52 (Ubuntu)
+|\_http-title: Did not follow redirect to http://searcher.htb/
+Service Info: Host: searcher.htb; OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 9.85 seconds
+```
+
+We see two ports are open, port 22 (SSH) and port 80 (HTTP). Based on these [versions](https://launchpad.net/ubuntu/+source/openssh/1:8.9p1-3ubuntu0.1), we can see that the machine is running Ubuntu 22.04 (Jammy Jellyfish)
+Nmap also detects a domain name `searcher.htb` which we can add to our `/etc/hosts` file.
+
+```shell
+echo "10.129.175.69  searcher.htb" | sudo tee -a /etc/hosts
+```
+
+### Subdomain fuzz
+
+Given the domain name, we can try to fuzz subdomains using the [wfuzz](https://github.com/xmendez/wfuzz) tool and see if we can find anything interesting.
+
+```shell
+
+```
