@@ -9,7 +9,7 @@ export default function OpenGraph({ metadata = {} }) {
       metadata.description ||
       'Blog posts about solved CTF machines, walkthroughs, challenges, web development analysis and much more...',
     slug: metadata.slug || '',
-    image: `https://cybersecurity-blog-rust.vercel.app/api/og?title=${
+    image: `https://874anthony.com/api/og?title=${
       metadata.title ||
       'Learn Cybersecurity related things and more | Anthony Acosta'
     }`,
@@ -24,11 +24,11 @@ export default function OpenGraph({ metadata = {} }) {
 
       <meta
         property="og:url"
-        content={`https://cybersecurity-blog-rust.vercel.app/${SEO.slug}`}
+        content={`https://874anthony.com/${SEO.slug}`}
       />
       <link
         rel="canonical"
-        href={`https://cybersecurity-blog-rust.vercel.app/${SEO.slug}`}
+        href={`https://874anthony.com/${SEO.slug}`}
       />
       <meta property="og:title" content={SEO.title} />
       <meta property="og:description" content={SEO.description} />

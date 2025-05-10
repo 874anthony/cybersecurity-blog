@@ -1,0 +1,302 @@
+---
+title: 'HTB Graverobber - Reversing Challenge Writeup'
+date: '2025-05-08'
+private: false
+tags:
+  [
+    'Difficulty: 🔰 Very Easy',
+    'OS: Linux',
+    'Category: Reversing',
+    'CTF: HackTheBox',
+  ]
+---
+
+<BoxInfo
+  imageURL="/images/reverse-robber/reverse-challenge-overview.png"
+  alt="HTB Graverobber Overview Image"
+  description="Graverobber is an introductory reversing challenge from Hack The Box. The provided binary always outputs 
+  'We took a wrong turning!' regardless of input. To understand its behavior and uncover the hidden logic, we analyze the 
+  binary using GDB, automate inspection using Python scripting, and extract meaningful values from memory during runtime."
+/>
+
+The challenge presents us with a single binary called `robber`. No matter how it's executed—whether with arguments, inputs, or piped data—it simply returns:
+
+```bash
+874anthony@~: ./robber
+We took a wrong turning!
+```
+
+There are no obvious clues from the CLI behavior alone, so dynamic analysis is required. In this write-up, we’ll use tools like **GDB**, **GEF**, and a custom Python script to reverse engineer the binary, identify key logic, and ultimately retrieve the flag.
+
+## Alternative Approaches and Our Focus
+
+While tools like _strace_ can be very useful for a quick dynamic analysis—letting you see all the system calls a binary makes—they often don’t reveal the inner workings of a program at the assembly level. For example, running:
+
+```bash
+874anthony@~: strace ./robber
+```
+
+Might show you that the binary opens files or makes network calls, but it won’t help you understand how the binary’s logic is constructed—or how the hidden behavior is triggered in memory.
+
+Because my main goal is to reverse engineer the binary, I’m focusing on dissecting the assembly code. This allows us not only to learn the low-level operations performed by the code, but also to identify the parts that are critical to the challenge. As you’ll see, using GDB (with GEF enhancements) gives us a window into the binary’s internal execution flow.
+
+Moreover, I'll show how we can extend GDB with Python scripts to automate tasks like reading specific memory regions and dynamically creating folders based on in-memory strings.
+
+After launching GDB with: (-q is for silent mode.)
+
+```bash
+874anthony@~: gdb -q robber
+GEF for linux ready, type `gef' to start, `gef config' to configure
+93 commands loaded and 5 functions added for GDB 16.2 in 0.00ms using Python engine 3.13
+Reading symbols from robber...
+(No debugging symbols found in robber)
+gef➤
+```
+
+There are many functions we can run with GEF, we start by running:
+
+```bash
+gef➤ info functions
+All defined functions:
+
+Non-debugging symbols:
+0x0000000000001000  _init
+0x0000000000001030  puts@plt
+0x0000000000001040  __stack_chk_fail@plt
+0x0000000000001050  stat@plt
+0x0000000000001060  _start
+0x0000000000001159  main
+0x000000000000126c  _fini
+```
+
+This command lists all available functions in the binary. As expected, you'll notice many functions belonging to the C standard library (like those from libc) which are auto-generated or imported during compilation. For our analysis, we can largely ignore those, and instead focus on the main() function and other symbols that are unique to our program. Therefore, we can take a look at the dissasembled code at main:
+
+```bash
+gef➤ help disas
+Disassemble a specified section of memory.
+Usage: disassemble[/m|/r|/s] START [, END]
+Default is the function surrounding the pc of the selected frame.
+```
+
+Now we can see what is the code for the `main` function:
+
+```bash
+gef➤ disas main
+Dump of assembler code for function main:
+   [...SNIP]
+   0x00000000000011c4 <+107>:   jmp    0x1237 <main+222>
+   0x00000000000011c6 <+109>:   mov    eax,DWORD PTR [rbp-0xe4]
+   0x0000000000001211 <+184>:   call   0x1050 <stat@plt>
+   0x0000000000001216 <+189>:   test   eax,eax
+   [...SNIP]
+   0x000000000000126b <+274>:   ret
+```
+
+Additionally, we can also set breakpoints to stop at specific points in the code and execute some actions:
+
+```bash
+gef➤ b main
+Breakpoint 1 at 0x115d
+
+gef➤ run
+───────────────────────────────────────────────────────────────────── stack ────
+0x00007fffffffdb80│+0x0000: 0x0000000000000001   ← $rsp, $rbp
+0x00007fffffffdb88│+0x0008: 0x00007ffff7ddbd68  →   mov edi, eax
+0x00007fffffffdb90│+0x0010: 0x00007fffffffdc80  →  0x00007fffffffdc88  →  0x0000000000000038 ("8"?)
+0x00007fffffffdb98│+0x0018: 0x0000555555555159  →  <main+0000> push rbp
+0x00007fffffffdba0│+0x0020: 0x0000000155554040
+0x00007fffffffdba8│+0x0028: 0x00007fffffffdc98  →  0x00007fffffffe020  →  "/home/874anthony/[...]"
+0x00007fffffffdbb0│+0x0030: 0x00007fffffffdc98  →  0x00007fffffffe020  →  "/home/874anthony/[...]"
+0x00007fffffffdbb8│+0x0038: 0x395d99ffb4cc39e6
+───────────────────────────────────────────────────────────────────── code:x86:64 ────
+   0x555555555154                  jmp    0x5555555550c0
+   0x555555555159 <main+0000>      push   rbp
+   0x55555555515a <main+0001>      mov    rbp, rsp
+●→ 0x55555555515d <main+0004>      sub    rsp, 0xf0
+   0x555555555164 <main+000b>      mov    rax, QWORD PTR fs:0x28
+   0x55555555516d <main+0014>      mov    QWORD PTR [rbp-0x8], rax
+   0x555555555171 <main+0018>      xor    eax, eax
+   0x555555555173 <main+001a>      mov    QWORD PTR [rbp-0x50], 0x0
+```
+
+Once the breakpoint is hit, we begin stepping through the assembly instructions using commands like nexti (or ni) to avoid stepping into external library code. This way, our attention stays on the logic specific to the challenge.
+
+Down in this post, I'll dive into how we can leverage Python inside GDB to automate parts of our analysis—such as automatically extracting memory values, processing them, and even creating folders dynamically based on those values.
+
+## Analyzing the stat Call
+
+After stepping through the binary using several si (step instruction) commands, we eventually land at the following instruction inside main:
+
+```css
+0x555555555211 <main+0xb8>    call   0x555555555050 <stat@plt>
+```
+
+This is a call to the stat function, resolved via the Procedure Linkage Table (PLT), which is how dynamically linked binaries handle external function calls. We can see it jumps through the Global Offset Table (GOT):
+
+```perl
+↳ 0x555555555050 <stat@plt+0x0>  jmp    QWORD PTR [rip+0x2fba]  # 0x555555558010 <stat@got.plt>
+```
+
+## What Does stat Do?
+
+The Linux stat system call is used to retrieve information about a file or directory, such as its size, permissions, and timestamps. It expects two arguments:
+
+- const char \*pathname – the path to the file or directory you want to check.
+- struct stat \*buf – a pointer to a buffer where stat will store the file's metadata.
+
+If the file or folder exists and is accessible, stat returns 0 (success) and fills the struct with data. Otherwise, it returns -1 and sets errno.
+
+## Understanding the Arguments
+
+Thanks to GEF, we get a clear visual breakdown of the function arguments right before the stat call is made:
+
+```perl
+stat@plt (
+   $rdi = 0x00007fffffffdb30 → 0x0000000000002f48 ("H/"),
+   $rsi = 0x00007fffffffdaa0 → 0x00007fffffffdb48 → 0x0000000000000000,
+   $rdx = 0x00007fffffffdaa0 → 0x00007fffffffdb48 → 0x0000000000000000
+)
+```
+
+Here’s what we can infer:
+
+- $rdi (1st argument) points to the string "H/", the pathname we want to check.
+- $rsi (2nd argument) points to a pre-allocated struct stat on the stack.
+- $rdx is irrelevant for this call (not used by stat) but sometimes shown due to context.
+
+## Why This Matters
+
+The result of the stat call likely controls the Zero Flag (ZF) in the CPU status register. The subsequent instructions will check the result—typically via a test or cmp instruction—and branch based on whether the directory exists:
+
+If stat() returns 0, the ZF is set, and execution continues down the success path.
+
+If it fails, the flow may jump elsewhere, potentially printing the misleading message: "We took a wrong turning!"
+
+This gives us a clue: the binary is likely checking for a specific path in a sequential or incremental way, and only if the right path exists does it progress to the next step.
+
+## Manually Reconstructing the Expected Path
+
+Based on the assumption that the binary is checking for the existence of certain directories step-by-step, I decided to manually create the folder indicated in the first argument to stat—which, as seen in the `$rdi` register, is "H/".
+
+I created it like this:
+
+```bash
+874anthony@~: mkdir H
+```
+
+First, I'll create a breakpoint at the stat call, to proceed to that breakpoint everytime it hits a new iteration.
+
+```bash
+gef➤  b *main+0xb5
+Breakpoint 2 at 0x55555555520e
+```
+
+Then, I used the continue command in GDB to let the binary proceed to the next breakpoint:
+
+```bash
+gef➤  continue
+```
+
+At the next breakpoint hit, GEF shows me that $rdi has changed:
+
+```perl
+stat@plt (
+   $rdi = 0x00007fffffffdb30 → 0x000000002f542f48 ("H/T/"?),
+   $rsi = 0x00007fffffffdaa0 → 0x0000000000000801,
+   $rdx = 0x00007fffffffdaa0 → 0x0000000000000801
+)
+```
+
+Now the binary is checking for the existence of the H/T/ directory. I repeated the process:
+
+```bash
+874anthony@~: mkdir H/T
+```
+
+Then hit continue again. Each time, the value in $rdi grew longer, revealing the next directory in the chain. It became clear that the binary was building and checking a full path one segment at a time—and only continuing if each part exists.
+
+I continued this process of:
+
+- Reading the path from $rdi,
+- Creating the corresponding folder,
+- Continuing execution with continue,
+
+...until the entire path was reconstructed.
+
+## Final Message and Flag
+
+After successfully creating all the required folders, the binary finally displayed a success message:
+
+```bash
+gef➤  c
+Continuing.
+We found the treasure! (I hope it's not cursed)
+[Inferior 1 (process 131765) exited normally]
+```
+
+If I run the binary again with all the folders:
+
+```bash
+874anthony@~: ./robber
+We found the treasure! (I hope it's not cursed)
+```
+
+The flag is: `HTB{br34k1n9_d0wn_th3_sysc4ll5}`
+
+🎉 And just like that, we uncovered the logic behind the binary and completed the challenge.
+
+## Automating the Folder Creation with Python + GDB
+
+While manually creating the directories step-by-step works just fine, we can automate the entire process using a small Python script that hooks into GDB's API.
+
+By writing a custom GDB breakpoint handler in Python, we can monitor each call to stat, extract the folder path being checked, and create the corresponding directory on-the-fly.
+
+Here’s the script:
+
+```python
+import gdb
+import os
+
+MEMORY_ADDRESS = '*main+0xb5'
+
+class WatchAndExtract(gdb.Breakpoint):
+    def __init__(self):
+        super().__init__(MEMORY_ADDRESS, internal=False)
+
+    def stop(self):
+        # Get the memory address
+        rax = gdb.parse_and_eval('$rax')
+
+        # Read the value
+        value = gdb.execute(f"x/s {rax}", to_string=True).strip()
+
+        # Extract and clean the folder path
+        folder_path = value.split(':')[1].strip().strip('"').rstrip('/')
+
+        if folder_path:
+            os.makedirs(folder_path, exist_ok=True)
+
+        return False
+
+WatchAndExtract()
+print(f"[+] Breakpoint set at {MEMORY_ADDRESS}. Waiting for the program to hit the breakpoint...")
+```
+
+To use it, just launch GDB with the binary:
+
+```bash
+874anthony@~: gdb -q robber
+```
+
+Then, from inside GDB, source the script:
+
+```bash
+gef➤ source path/to/directoryExtraction.py
+gef➤ run
+```
+
+The script will automatically create each required folder as the binary checks for it. Once all the correct folders are in place, the program will show the final message—just like before, but now fully automated. ✅
+
+📎 You can find the full script and repository here: (Don't forget to add a ⭐)
+
+👉 https://github.com/874anthony/basic-gdb-pythondebug

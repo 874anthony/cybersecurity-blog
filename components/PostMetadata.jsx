@@ -1,6 +1,6 @@
 import { UI, Icons } from '@/ui';
 import { formatDate } from '@/lib/formatDate';
-import HTBProfile from './HTBProfile';
+import LinkProfile from './LinkProfile';
 
 export default function PostMetadata({ date, tags, slug, readingTime }) {
   return (
@@ -43,7 +43,7 @@ export default function PostMetadata({ date, tags, slug, readingTime }) {
         </UI.Flex>
       </UI.Flex>
 
-      <HTBProfile />
+      <LinkProfile />
     </UI.Flex>
   );
 }

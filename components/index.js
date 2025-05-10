@@ -2,7 +2,7 @@ export { default as CustomLink } from './CustomLink';
 export { default as SocialNetworks } from './SocialNetworks';
 export { default as PostListItem } from './PostListItem';
 export { default as PostMetadata } from './PostMetadata';
-export { default as HTBProfile } from './HTBProfile';
+export { default as LinkProfile } from './LinkProfile';
 export { default as Footer } from './Footer';
 export { default as Layout } from './Layout';
 export { default as ScrollToTop } from './ScrollToTop';
